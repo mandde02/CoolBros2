@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Cool Bros – Fertility Thermal Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#040c14;color:#fff;font-family:'Share Tech Mono',monospace;-webkit-tap-highlight-color:transparent}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:0.8}50%{transform:scale(1.04);opacity:1}}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#040c14}::-webkit-scrollbar-thumb{background:#1a3a5a;border-radius:2px}
+input[type=range]{-webkit-appearance:none;height:5px;border-radius:3px;background:#1a3a5a;outline:none;width:100%}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#00e5ff,#0099bb);cursor:pointer;box-shadow:0 0 8px #00e5ff66}
+input[type=number]{background:#0a1929;border:1px solid #0d3050;color:#fff;padding:5px 8px;border-radius:6px;font-family:'Share Tech Mono',monospace;width:64px;text-align:center;font-size:14px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+const TEMP_BASELINE=31,TEMP_WARNING=33,TEMP_CRITICAL=35,COOLDOWN_WINDOW=10,MAX_GRAPH_POINTS=10800,WEAR_GOAL_HOURS=12;
+const SPERM_STAGES=[
+  {id:0,name:"Stem Cell",days:[0,0],daysLabel:"Day 0",color:"#00e5ff",desc:"Spermatogonial stem cells — the starting point of your journey."},
+  {id:1,name:"Pachytene Spermatocyte",days:[1,14],daysLabel:"Days 1–14",color:"#b388ff",desc:"Primary spermatocytes undergoing meiosis — DNA being duplicated and recombined."},
+  {id:2,name:"Round Spermatid",days:[15,28],daysLabel:"Days 15–28",color:"#69ff47",desc:"Post-meiotic round spermatids — haploid cells beginning to differentiate."},
+  {id:3,name:"Elongating Spermatid",days:[29,42],daysLabel:"Days 29–42",color:"#ffb300",desc:"Spermatids elongating and developing the flagellum — taking shape as sperm."},
+  {id:4,name:"Epididymal Sperm",days:[43,52],daysLabel:"Days 43–52",color:"#ff6d00",desc:"Sperm maturing in the epididymis — gaining motility from caput to cauda."},
+  {id:5,name:"Ejaculated Sperm",days:[53,56],daysLabel:"Days 53–56",color:"#00e5ff",desc:"Mature, motile sperm — fully formed and ready. Your Cool Bros journey is complete! 🎉"},
+];
+
+function CellStemCell({q}){const c="#00e5ff";return(<svg viewBox="0 0 60 60" width="60" height="60"><circle cx="30" cy="30" r="20" fill={c} opacity={0.1+q*0.2} stroke={c} strokeWidth="2"/><circle cx="30" cy="30" r="10" fill={c} opacity={0.3+q*0.4}/><circle cx="24" cy="24" r="4" fill="#fff" opacity={0.2+q*0.3}/></svg>);}
+function CellSpermatocyte({q}){const o=0.2+q*0.8;return(<svg viewBox="0 0 60 60" width="60" height="60"><ellipse cx="30" cy="30" rx="22" ry="18" fill="#b388ff" opacity={o*0.25} stroke="#b388ff" strokeWidth="2" strokeOpacity={o}/><ellipse cx="30" cy="30" rx="10" ry="8" fill="#b388ff" opacity={o*0.6}/>{q>0.4&&<><line x1="20" y1="30" x2="40" y2="30" stroke="#fff" strokeWidth="1" opacity="0.4"/><line x1="30" y1="20" x2="30" y2="40" stroke="#fff" strokeWidth="1" opacity="0.4"/></>}<circle cx="24" cy="24" r="3" fill="#fff" opacity={q>0.5?0.4:0.1}/></svg>);}
+function CellRoundSpermatid({q}){const o=0.2+q*0.8;return(<svg viewBox="0 0 60 60" width="60" height="60"><circle cx="30" cy="26" r="16" fill="#69ff47" opacity={o*0.2} stroke="#69ff47" strokeWidth="2" strokeOpacity={o}/><circle cx="30" cy="26" r="7" fill="#69ff47" opacity={o*0.5}/>{q>0.3&&<ellipse cx="30" cy="44" rx="3" ry="6" fill="#69ff47" opacity={o*0.4}/>}<circle cx="26" cy="22" r="2.5" fill="#fff" opacity={q>0.5?0.4:0.1}/></svg>);}
+function CellElongatingSpermatid({q}){const o=0.2+q*0.8,tl=8+q*14;return(<svg viewBox="0 0 60 60" width="60" height="60"><ellipse cx="30" cy="20" rx="10" ry="13" fill="#ffb300" opacity={o*0.2} stroke="#ffb300" strokeWidth="2" strokeOpacity={o}/><ellipse cx="30" cy="20" rx="5" ry="6" fill="#ffb300" opacity={o*0.5}/><path d={`M30 33 Q${28+q*4} ${33+tl/2} 30 ${33+tl}`} fill="none" stroke="#ffb300" strokeWidth="1.5" opacity={o}/><circle cx="27" cy="16" r="2" fill="#fff" opacity={q>0.5?0.4:0.1}/></svg>);}
+function CellEpididymalSperm({q}){const o=0.2+q*0.8;return(<svg viewBox="0 0 60 60" width="60" height="60"><ellipse cx="30" cy="16" rx="8" ry="10" fill="#ff6d00" opacity={o*0.3} stroke="#ff6d00" strokeWidth="2" strokeOpacity={o}/><ellipse cx="30" cy="16" rx="4" ry="5" fill="#ff6d00" opacity={o*0.6}/><path d={`M30 26 Q${26+q*8} 38 ${28+q*4} 52`} fill="none" stroke="#ff6d00" strokeWidth="2" opacity={o} strokeLinecap="round"/>{q>0.6&&<ellipse cx="30" cy="26" rx="5" ry="3" fill="#ff6d00" opacity={o*0.3}/>}</svg>);}
+function CellEjaculatedSperm({q}){const o=0.3+q*0.7;return(<svg viewBox="0 0 60 60" width="60" height="60"><ellipse cx="30" cy="14" rx="9" ry="11" fill="#00e5ff" opacity={o*0.3} stroke="#00e5ff" strokeWidth="2" strokeOpacity={o}/><ellipse cx="30" cy="14" rx="5" ry="6" fill="#00e5ff" opacity={o*0.7}/><ellipse cx="30" cy="26" rx="6" ry="4" fill="#00e5ff" opacity={o*0.4}/><path d="M30 30 Q24 41 28 54" fill="none" stroke="#00e5ff" strokeWidth="2.5" opacity={o} strokeLinecap="round"/>{q>0.7&&<><circle cx="38" cy="18" r="2" fill="#00e5ff" opacity="0.5"/><circle cx="22" cy="20" r="1.5" fill="#00e5ff" opacity="0.4"/></>}</svg>);}
+const CELL_COMPONENTS=[CellStemCell,CellSpermatocyte,CellRoundSpermatid,CellElongatingSpermatid,CellEpididymalSperm,CellEjaculatedSperm];
+
+function generateTemp(fs,pt){return Math.max(29,Math.min(37.5,pt+(Math.random()-0.48)*0.3-fs*0.025));}
+function fanColor(s){if(s<=25)return"#00e5ff";if(s<=50)return"#69ff47";if(s<=75)return"#ffb300";return"#ff1744";}
+function tempColor(t){if(t<33)return"#00e5ff";if(t<34)return"#69ff47";if(t<35)return"#ffb300";return"#ff1744";}
+function fmtTime(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h}h ${m}m`;return`${m}m ${s%60}s`;}
+function fmtClock(d){return d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});}
+
+function WormGraph({tempData,height=130}){
+  const ref=useRef(null);const[W,setW]=useState(320);
+  useEffect(()=>{if(!ref.current)return;setW(ref.current.offsetWidth||320);const ro=new ResizeObserver(e=>setW(e[0].contentRect.width||320));ro.observe(ref.current);return()=>ro.disconnect();},[]);
+  const step=Math.max(1,Math.floor(tempData.length/300));
+  const data=tempData.filter((_,i)=>i%step===0||i===tempData.length-1);
+  const H=height,pad={t:12,b:28,l:32,r:16},gW=W-pad.l-pad.r,gH=H-pad.t-pad.b,tMin=29,tMax=38;
+  const toX=i=>pad.l+(i/Math.max(1,data.length-1))*gW;
+  const toY=v=>pad.t+(1-(v-tMin)/(tMax-tMin))*gH;
+  const yW=toY(TEMP_WARNING),yC=toY(TEMP_CRITICAL);
+  const runs=[];
+  if(data.length>=2){let cur={color:tempColor(data[0]),pts:[`${toX(0)},${toY(data[0])}`]};for(let i=1;i<data.length;i++){const c=tempColor(data[i]),pt=`${toX(i)},${toY(data[i])}`;if(c===cur.color){cur.pts.push(pt);}else{cur.pts.push(pt);runs.push(cur);cur={color:c,pts:[pt]};}}runs.push(cur);}
+  const labels=[];for(let i=0;i<=4;i++){const idx=Math.round((i/4)*(data.length-1));const sa=Math.round((data.length-1-idx)*step);labels.push({x:toX(idx),lbl:sa<60?`${sa}s`:sa<3600?`${Math.round(sa/60)}m`:`${(sa/3600).toFixed(1)}h`});}
+  const lx=toX(data.length-1),ly=toY(data[data.length-1]),lc=tempColor(data[data.length-1]);
+  return <div ref={ref} style={{width:"100%"}}>{data.length<2?<div style={{height,display:"flex",alignItems:"center",justifyContent:"center",color:"#3a6a8a",fontSize:11}}>CONNECT DEVICE TO BEGIN</div>:
+  <svg width={W} height={H} style={{overflow:"visible",display:"block"}}>
+    {[29,31,33,35,37].map(t=>{const y=toY(t);return<g key={t}><line x1={pad.l} y1={y} x2={W-pad.r} y2={y} stroke="#0d2035" strokeWidth="1"/><text x={pad.l-4} y={y+4} textAnchor="end" fontSize="9" fill="#3a6a8a">{t}°</text></g>;})}
+    <rect x={pad.l} y={yC} width={gW} height={yW-yC} fill="#ff174408"/>
+    <line x1={pad.l} y1={yW} x2={W-pad.r} y2={yW} stroke="#ffb300" strokeWidth="1" strokeDasharray="4,3" opacity="0.5"/>
+    <line x1={pad.l} y1={yC} x2={W-pad.r} y2={yC} stroke="#ff1744" strokeWidth="1" strokeDasharray="4,3" opacity="0.5"/>
+    <text x={W-pad.r+2} y={yW+3} fontSize="8" fill="#ffb300">33°</text>
+    <text x={W-pad.r+2} y={yC+3} fontSize="8" fill="#ff1744">35°</text>
+    {runs.map((r,i)=><polyline key={i} points={r.pts.join(" ")} fill="none" stroke={r.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>)}
+    <circle cx={lx} cy={ly} r="6" fill={lc} opacity="0.2"/>
+    <circle cx={lx} cy={ly} r="3.5" fill={lc} style={{filter:`drop-shadow(0 0 5px ${lc})`}}/>
+    {labels.map((l,i)=><text key={i} x={l.x} y={H-6} textAnchor="middle" fontSize="9" fill="#3a6a8a">{l.lbl}</text>)}
+  </svg>}</div>;
+}
+
+function FanSpinner({speed,color,label}){
+  const dur=speed>0?`${Math.max(0.25,3-speed*0.025)}s`:"999s";
+  return <div style={{textAlign:"center"}}>
+    <div style={{width:58,height:58,margin:"0 auto",animation:`spin ${dur} linear infinite`,filter:`drop-shadow(0 0 10px ${color})`}}>
+      <svg viewBox="0 0 64 64" width="58" height="58">{[0,90,180,270].map(r=><path key={r} transform={`rotate(${r} 32 32)`} d="M32 32 Q20 20 24 8 Q32 14 32 32" fill={color} opacity="0.9"/>)}<circle cx="32" cy="32" r="6" fill={color}/><circle cx="32" cy="32" r="3" fill="#fff" opacity="0.4"/></svg>
+    </div>
+    <div style={{color,fontSize:10,marginTop:3,letterSpacing:1}}>{label}</div>
+    <div style={{color:"#fff",fontFamily:"'Orbitron',monospace",fontSize:18,fontWeight:900}}>{speed.toFixed(0)}<span style={{fontSize:10,color:"#8ab8c8"}}>%</span></div>
+  </div>;
+}
+
+function GaugeArc({value,min,max,color,size=110}){
+  const pct=Math.min(1,Math.max(0,(value-min)/(max-min)));
+  const r=size/2-10,cx=size/2,cy=size/2+8;
+  const toXY=deg=>{const rad=(deg-90)*Math.PI/180;return{x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};};
+  const s=toXY(-110),e=toXY(110),f=toXY(pct*220-110),gid=`g${color.replace("#","")}`;
+  return <svg width={size} height={size} style={{overflow:"visible"}}>
+    <defs><linearGradient id={gid} x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor={color} stopOpacity="0.4"/><stop offset="100%" stopColor={color}/></linearGradient></defs>
+    <path d={`M${s.x} ${s.y} A ${r} ${r} 0 1 1 ${e.x} ${e.y}`} fill="none" stroke="#0d2035" strokeWidth="9" strokeLinecap="round"/>
+    <path d={`M${s.x} ${s.y} A ${r} ${r} 0 ${pct>0.5?1:0} 1 ${f.x} ${f.y}`} fill="none" stroke={`url(#${gid})`} strokeWidth="9" strokeLinecap="round" style={{filter:`drop-shadow(0 0 8px ${color}88)`}}/>
+  </svg>;
+}
+
+function Toggle({checked,onChange,label,sublabel,accent="#00e5ff"}){
+  const rgb=accent==="#00e5ff"?"0,229,255":accent==="#ffb300"?"255,179,0":"105,255,71";
+  return <div onClick={()=>onChange(!checked)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:checked?`rgba(${rgb},0.07)`:"#0c1e2e",border:`1px solid ${checked?accent+"55":"#0d3050"}`,borderRadius:10,marginBottom:8,cursor:"pointer",transition:"all 0.3s",boxShadow:checked?`0 0 20px ${accent}22`:"none"}}>
+    <div><div style={{fontSize:12,color:checked?accent:"#7a9ab0",fontFamily:"'Orbitron',monospace",letterSpacing:1}}>{label}</div>{sublabel&&<div style={{fontSize:10,color:"#8ab8c8",marginTop:2}}>{sublabel}</div>}</div>
+    <div style={{width:46,height:26,borderRadius:13,background:checked?accent:"#1a3a5a",position:"relative",transition:"background 0.3s",flexShrink:0,boxShadow:checked?`0 0 12px ${accent}66`:"none"}}>
+      <div style={{position:"absolute",top:3,left:checked?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.25s",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}/>
+    </div>
+  </div>;
+}
+
+function WearRing({pct,size=140,color="#00e5ff",label,sublabel}){
+  const r=size/2-12,cx=size/2,cy=size/2,circ=2*Math.PI*r,dash=pct*circ;
+  return <div style={{textAlign:"center",position:"relative",width:size,margin:"0 auto"}}>
+    <svg width={size} height={size} style={{transform:"rotate(-90deg)",display:"block"}}><circle cx={cx} cy={cy} r={r} fill="none" stroke="#0d2035" strokeWidth="11"/><circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${dash} ${circ}`} style={{filter:`drop-shadow(0 0 8px ${color}66)`,transition:"stroke-dasharray 1s ease"}}/></svg>
+    <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)"}}>
+      <div style={{fontFamily:"'Orbitron',monospace",fontSize:20,fontWeight:900,color,lineHeight:1}}>{label}</div>
+      <div style={{fontSize:9,color:"#8ab8c8",marginTop:3}}>{sublabel}</div>
+    </div>
+  </div>;
+}
+
+function CoolBrosLogo({size=38}){
+  return <svg viewBox="0 0 220 160" width={size*1.5} height={size}>
+    <text x="4" y="78" fontFamily="Arial Black,sans-serif" fontWeight="900" fontSize="76" fill="#00c8e0" letterSpacing="-2">COOL</text>
+    <text x="4" y="152" fontFamily="Arial Black,sans-serif" fontWeight="900" fontSize="76" fill="#00c8e0" letterSpacing="-2">BR</text>
+    <circle cx="163" cy="122" r="30" fill="none" stroke="#00c8e0" strokeWidth="4"/>
+    {[0,60,120,180,240,300].map(a=>{const rad=a*Math.PI/180,x1=163+9*Math.cos(rad),y1=122+9*Math.sin(rad),x2=163+24*Math.cos(rad+0.6),y2=122+24*Math.sin(rad+0.6);return<path key={a} d={`M${x1} ${y1} Q${x2} ${y2} ${163+24*Math.cos(rad+1.2)} ${122+24*Math.sin(rad+1.2)}`} fill="none" stroke="#00c8e0" strokeWidth="3.5" strokeLinecap="round"/>;  })}
+    <circle cx="163" cy="122" r="7" fill="#00c8e0"/>
+    <path d="M195 129 L214 122 L195 115" fill="#00c8e0"/>
+  </svg>;
+}
+
+function App(){
+  const[tab,setTab]=useState("monitor");
+  const[connected,setConnected]=useState(false);
+  const[tempHistory,setTempHistory]=useState([31.2,31.1,31.3]);
+  const[fanSpeed,setFanSpeed]=useState(25);
+  const[fanHistory,setFanHistory]=useState([25,25,25]);
+  const[status,setStatus]=useState("STANDBY");
+  const[countdown,setCountdown]=useState(null);
+  const[heatEvents,setHeatEvents]=useState([]);
+  const heatStartRef=useRef(null);
+  const[wearSessions,setWearSessions]=useState([]);
+  const[todaySeconds,setTodaySeconds]=useState(0);
+  const wearTickRef=useRef(null);
+  const[restrict50,setRestrict50]=useState(false);
+  const[meetingMode,setMeetingMode]=useState(false);
+  const[meetingDuration,setMeetingDuration]=useState(60);
+  const[meetingTimer,setMeetingTimer]=useState(null);
+  const[wearDays,setWearDays]=useState(0);
+  const[overrideActive,setOverrideActive]=useState(false);
+  const[overrideSpeed,setOverrideSpeed]=useState(50);
+  const[overrideDuration,setOverrideDuration]=useState(30);
+  const[overrideTimer,setOverrideTimer]=useState(null);
+  const[overrideIgnoreSensors,setOverrideIgnoreSensors]=useState(false);
+  const overrideTimerRef=useRef(null);
+  const cooldownRef=useRef(null),intervalRef=useRef(null),meetingRef=useRef(null);
+
+  const fanCap=useCallback(()=>{if(overrideActive)return overrideSpeed;if(meetingMode&&meetingTimer>0)return 25;if(restrict50)return 50;return 100;},[overrideActive,overrideSpeed,meetingMode,meetingTimer,restrict50]);
+  const computeFan=useCallback((temp,cur)=>{let s;if(temp<TEMP_WARNING)s=Math.max(25,cur-5);else if(temp<33.5)s=35;else if(temp<34)s=50;else if(temp<34.5)s=65;else if(temp<35)s=80;else s=100;return Math.min(s,fanCap());},[fanCap]);
+
+  useEffect(()=>{if(overrideActive){setOverrideTimer(overrideDuration*60);}else{setOverrideTimer(null);if(overrideTimerRef.current)clearInterval(overrideTimerRef.current);}},[overrideActive]);
+  useEffect(()=>{if(overrideTimer===null)return;if(overrideTimerRef.current)clearInterval(overrideTimerRef.current);overrideTimerRef.current=setInterval(()=>{setOverrideTimer(t=>{if(t<=1){clearInterval(overrideTimerRef.current);setOverrideActive(false);return null;}return t-1;});},1000);return()=>clearInterval(overrideTimerRef.current);},[overrideTimer!==null]);
+  useEffect(()=>{if(meetingMode){setMeetingTimer(meetingDuration*60);}else{setMeetingTimer(null);if(meetingRef.current)clearInterval(meetingRef.current);}},[meetingMode]);
+  useEffect(()=>{if(meetingTimer===null)return;if(meetingRef.current)clearInterval(meetingRef.current);meetingRef.current=setInterval(()=>{setMeetingTimer(t=>{if(t<=1){clearInterval(meetingRef.current);setMeetingMode(false);return null;}return t-1;});},1000);return()=>clearInterval(meetingRef.current);},[meetingTimer!==null]);
+
+  const handleConnect=useCallback(()=>{
+    if(!connected){setWearSessions(s=>[...s,{start:new Date(),end:null}]);wearTickRef.current=setInterval(()=>setTodaySeconds(s=>s+1),1000);setConnected(true);setStatus("NOMINAL");}
+    else{setWearSessions(s=>s.map((sess,i)=>i===s.length-1?{...sess,end:new Date()}:sess));clearInterval(wearTickRef.current);clearInterval(intervalRef.current);setConnected(false);setStatus("STANDBY");}
+  },[connected]);
+
+  useEffect(()=>{
+    if(!connected)return;
+    intervalRef.current=setInterval(()=>{
+      setTempHistory(prev=>{
+        const last=prev[prev.length-1],next=generateTemp(fanSpeed,last);
+        const hist=[...prev.slice(-(MAX_GRAPH_POINTS-1)),next];
+        let ns="NOMINAL",nf=fanSpeed;
+        if(next>=TEMP_WARNING){ns="COOLING";if(!cooldownRef.current){cooldownRef.current=COOLDOWN_WINDOW;setCountdown(COOLDOWN_WINDOW);}}
+        if(cooldownRef.current!==null){cooldownRef.current-=1;setCountdown(cooldownRef.current);if(cooldownRef.current<=0){cooldownRef.current=null;setCountdown(null);if(next>=TEMP_WARNING){nf=Math.min(fanCap(),fanSpeed+10);ns="ESCALATING";}}}
+        if(next<TEMP_BASELINE+0.5&&fanSpeed>25){nf=Math.max(25,fanSpeed-3);ns="COOLING DOWN";cooldownRef.current=null;setCountdown(null);}
+        if(next>=TEMP_CRITICAL)ns="CRITICAL";
+        if(next>=TEMP_CRITICAL){if(!heatStartRef.current)heatStartRef.current={time:new Date(),maxTemp:next};else heatStartRef.current.maxTemp=Math.max(heatStartRef.current.maxTemp,next);}
+        else if(heatStartRef.current){const dur=Math.round((new Date()-heatStartRef.current.time)/1000);if(dur>=3)setHeatEvents(e=>[{time:fmtClock(heatStartRef.current.time),duration:dur,maxTemp:heatStartRef.current.maxTemp.toFixed(1)},...e].slice(0,100));heatStartRef.current=null;}
+        if(!overrideIgnoreSensors||!overrideActive){nf=computeFan(next,nf);setFanSpeed(nf);}
+        else{setFanSpeed(overrideSpeed);}
+        setFanHistory(h=>[...h.slice(-(MAX_GRAPH_POINTS-1)),fanSpeed]);setStatus(ns);
+        return hist;
+      });
+    },1000);
+    return()=>clearInterval(intervalRef.current);
+  },[connected,fanSpeed,computeFan,fanCap,overrideActive,overrideIgnoreSensors,overrideSpeed]);
+
+  const currentTemp=tempHistory[tempHistory.length-1];
+  const statusColor={STANDBY:"#546e7a",NOMINAL:"#00e5ff",COOLING:"#69ff47",ESCALATING:"#ffb300","COOLING DOWN":"#00e5ff",CRITICAL:"#ff1744"}[status]||"#fff";
+  const wearPct=Math.min(1,todaySeconds/(WEAR_GOAL_HOURS*3600));
+  const wearGoalMet=todaySeconds>=WEAR_GOAL_HOURS*3600;
+  const activeCap=fanCap();
+  const card={background:"linear-gradient(135deg,#0a1929,#061422)",border:"1px solid #0d3050",borderRadius:12,padding:"14px",marginBottom:12,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"};
+
+  return <div style={{minHeight:"100vh",background:"#040c14",color:"#fff",fontFamily:"'Share Tech Mono',monospace",paddingBottom:80}}>
+
+    {/* HEADER */}
+    <div style={{background:"linear-gradient(180deg,#071522,#040c14)",borderBottom:"1px solid #0d3050",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <CoolBrosLogo size={34}/>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        {connected&&<div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(0,229,255,0.1)",border:"1px solid #00e5ff33",borderRadius:20,padding:"4px 10px"}}><div style={{width:6,height:6,borderRadius:"50%",background:"#00e5ff",animation:"pulse 1.5s infinite",boxShadow:"0 0 6px #00e5ff"}}/><span style={{fontSize:9,color:"#00e5ff",letterSpacing:1}}>LIVE</span></div>}
+        {overrideActive&&<div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,179,0,0.1)",border:"1px solid #ffb30044",borderRadius:20,padding:"4px 10px"}}><div style={{width:6,height:6,borderRadius:"50%",background:"#ffb300",animation:"pulse 1s infinite"}}/><span style={{fontSize:9,color:"#ffb300",letterSpacing:1}}>OVERRIDE</span></div>}
+        <button onClick={handleConnect} style={{background:connected?"linear-gradient(135deg,#3d0014,#1a000a)":"linear-gradient(135deg,#003d4d,#001a22)",border:`1px solid ${connected?"#ff1744":"#00e5ff"}`,color:connected?"#ff1744":"#00e5ff",padding:"8px 18px",fontFamily:"'Orbitron',monospace",fontSize:10,letterSpacing:2,cursor:"pointer",borderRadius:20,transition:"all 0.3s"}}>
+          {connected?"DISCONNECT":"CONNECT"}
+        </button>
+      </div>
+    </div>
+
+    {/* STATUS BAR */}
+    <div style={{background:`rgba(${statusColor==="#ff1744"?"255,23,68":statusColor==="#ffb300"?"255,179,0":"0,229,255"},0.06)`,borderBottom:`1px solid ${statusColor}22`,padding:"7px 16px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:statusColor,boxShadow:`0 0 10px ${statusColor}`,animation:connected?"pulse 1.5s infinite":"none"}}/>
+      <span style={{color:statusColor,fontFamily:"'Orbitron',monospace",fontSize:10,letterSpacing:3}}>{status}</span>
+      {countdown!==null&&<span style={{color:"#ffb300",fontSize:10}}>· ESCALATING IN {countdown}s</span>}
+      {activeCap<100&&<span style={{color:"#ffb300",fontSize:10}}>· {overrideActive?"OVERRIDE":meetingMode?"MEETING":"PUBLIC"} — MAX {activeCap}%</span>}
+      {meetingMode&&meetingTimer>0&&<span style={{color:"#8ab8c8",fontSize:10,marginLeft:"auto"}}>🤫 {Math.floor(meetingTimer/60)}:{String(meetingTimer%60).padStart(2,"0")} left</span>}
+    </div>
+
+    {/* TABS */}
+    <div style={{display:"flex",background:"#040c14",borderBottom:"1px solid #0d3050",position:"sticky",top:65,zIndex:40}}>
+      {[["monitor","📊 MONITOR"],["wear","⏱ WEAR"],["journey","🧬 JOURNEY"],["override","🎛 OVERRIDE"],["settings","⚙ SETTINGS"]].map(([id,lbl])=>(
+        <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"11px 2px",background:"none",border:"none",borderBottom:tab===id?"2px solid #00e5ff":"2px solid transparent",color:tab===id?"#00e5ff":"#3a5a6a",fontFamily:"'Share Tech Mono',monospace",fontSize:9,cursor:"pointer",transition:"all 0.2s"}}>{lbl}</button>
+      ))}
+    </div>
+
+    <div style={{padding:"16px",maxWidth:600,margin:"0 auto"}}>
+
+    {/* MONITOR */}
+    {tab==="monitor"&&<>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        {[0,1].map(i=><div key={i} style={{...card,textAlign:"center"}}>
+          <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3,marginBottom:6}}>{i===0?"LEFT TEMPERATURE":"RIGHT TEMPERATURE"}</div>
+          <div style={{position:"relative",display:"inline-block"}}>
+            <GaugeArc value={connected?currentTemp:30} min={28} max={38} color={tempColor(currentTemp)} size={100}/>
+            <div style={{position:"absolute",top:"52%",left:"50%",transform:"translate(-50%,-50%)",fontFamily:"'Orbitron',monospace",fontSize:22,fontWeight:900,color:connected?tempColor(currentTemp):"#1a3a5a",textShadow:connected?`0 0 20px ${tempColor(currentTemp)}66`:"none",lineHeight:1}}>
+              {connected?currentTemp.toFixed(1):"--.-"}
+            </div>
+          </div>
+          <div style={{color:"#6ab0c0",fontSize:9,marginTop:2}}>°C</div>
+          {connected&&<div style={{marginTop:6,padding:"3px 8px",background:`${tempColor(currentTemp)}11`,borderRadius:6,border:`1px solid ${tempColor(currentTemp)}33`,display:"inline-block"}}><span style={{fontSize:9,color:tempColor(currentTemp)}}>{currentTemp<33?"NORMAL":currentTemp<35?"WARNING":"CRITICAL"}</span></div>}
+        </div>)}
+      </div>
+      <div style={{...card}}>
+        <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3,marginBottom:12,textAlign:"center"}}>FAN CONTROL</div>
+        <div style={{display:"flex",justifyContent:"space-around",marginBottom:12}}>
+          <FanSpinner speed={connected?fanSpeed:0} color={fanColor(fanSpeed)} label="LEFT FAN"/>
+          <FanSpinner speed={connected?fanSpeed:0} color={fanColor(fanSpeed)} label="RIGHT FAN"/>
+        </div>
+        <div style={{height:6,background:"#0d2035",borderRadius:3,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${connected?fanSpeed:0}%`,background:`linear-gradient(90deg,${fanColor(fanSpeed)}88,${fanColor(fanSpeed)})`,borderRadius:3,transition:"width 0.8s ease",boxShadow:`0 0 10px ${fanColor(fanSpeed)}66`}}/>
+        </div>
+      </div>
+      <div style={{...card}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3}}>TEMPERATURE RECORD</div>
+          <div style={{fontSize:9,color:"#8ab8c8"}}>{tempHistory.length>3600?`${(tempHistory.length/3600).toFixed(1)}h`:`${Math.floor(tempHistory.length/60)}m`} data</div>
+        </div>
+        <WormGraph tempData={tempHistory} height={130}/>
+        <div style={{display:"flex",gap:10,marginTop:8,flexWrap:"wrap"}}>
+          {[{c:"#00e5ff",l:"<33° Normal"},{c:"#69ff47",l:"33–34° Warm"},{c:"#ffb300",l:"34–35° Hot"},{c:"#ff1744",l:">35° Critical"}].map(x=><div key={x.l} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:16,height:3,background:x.c,borderRadius:2}}/><span style={{fontSize:8,color:"#5a8a9a"}}>{x.l}</span></div>)}
+        </div>
+      </div>
+      <div style={{...card,border:"1px solid #ff174422"}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+          <div style={{fontSize:9,color:"#ff6060",letterSpacing:3}}>🔥 HEAT STRESS EVENTS (&gt;35°C)</div>
+          <div style={{fontSize:9,color:"#8ab8c8"}}>{heatEvents.length} events</div>
+        </div>
+        <div style={{maxHeight:180,overflowY:"auto"}}>
+          {heatEvents.length===0?<div style={{padding:12,textAlign:"center",color:"#3a6a5a",fontSize:11}}>No heat stress events ✓</div>
+          :heatEvents.map((e,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"60px 65px 70px 1fr",padding:"8px 0",fontSize:10,borderBottom:"1px solid #0d203033",gap:6,alignItems:"center"}}>
+            <span style={{color:"#8ab8c8"}}>{e.time}</span><span style={{color:"#ff9060",fontWeight:"bold"}}>{fmtTime(e.duration)}</span>
+            <span style={{color:"#ff4444",fontFamily:"'Orbitron',monospace"}}>{e.maxTemp}°C</span>
+            <div style={{height:4,background:"#0d2035",borderRadius:2}}><div style={{height:"100%",width:`${Math.min(100,(e.duration/300)*100)}%`,background:"linear-gradient(90deg,#ff6d00,#ff1744)",borderRadius:2}}/></div>
+          </div>)}
+        </div>
+      </div>
+    </>}
+
+    {/* WEAR */}
+    {tab==="wear"&&<>
+      <div style={{...card,border:`1px solid ${wearGoalMet?"#00e5ff44":"#0d3050"}`,textAlign:"center",boxShadow:wearGoalMet?"0 0 30px #00e5ff22":"none"}}>
+        <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3,marginBottom:16}}>TODAY'S WEAR TIME</div>
+        <WearRing pct={wearPct} size={150} color={wearGoalMet?"#69ff47":"#00e5ff"} label={fmtTime(todaySeconds)} sublabel={`GOAL: ${WEAR_GOAL_HOURS}h / DAY`}/>
+        <div style={{marginTop:16}}>
+          {wearGoalMet?<div style={{background:"rgba(105,255,71,0.1)",border:"1px solid #69ff4744",borderRadius:20,padding:"8px 20px",display:"inline-block",animation:"breathe 2s infinite"}}><span style={{color:"#69ff47",fontFamily:"'Orbitron',monospace",fontSize:11,letterSpacing:2}}>🎯 DAILY GOAL MET!</span></div>
+          :<div style={{color:"#8ab8c8",fontSize:11}}>{fmtTime(Math.max(0,WEAR_GOAL_HOURS*3600-todaySeconds))} remaining</div>}
+        </div>
+        <div style={{marginTop:12,padding:"10px",background:"rgba(0,229,255,0.04)",borderRadius:8,border:"1px solid #00e5ff11"}}>
+          <div style={{fontSize:11,color:"#7ecfdf",lineHeight:1.7}}>{todaySeconds===0?"👕 Put on your Cool Bros device to start tracking!":wearPct<0.25?"🌱 Great start — every hour counts for sperm health.":wearPct<0.5?"💪 Making progress — keep it up!":wearPct<0.75?"🔥 Over halfway — your future self thanks you!":wearGoalMet?"🏆 Outstanding! Wearing even longer gives better results.":"⚡ So close to your goal — don't stop now!"}</div>
+        </div>
+      </div>
+      <div style={{...card}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+          <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3}}>TODAY'S SESSIONS</div>
+          <div style={{fontSize:9,color:"#8ab8c8"}}>{wearSessions.length} session{wearSessions.length!==1?"s":""}</div>
+        </div>
+        {wearSessions.length===0?<div style={{padding:12,textAlign:"center",color:"#3a5a6a",fontSize:11}}>No sessions yet — connect to begin</div>
+        :wearSessions.map((s,i)=>{const dur=s.end?Math.round((s.end-s.start)/1000):Math.round((new Date()-s.start)/1000);return<div key={i} style={{padding:"10px 0",borderBottom:"1px solid #0d203044",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12,color:"#00e5ff"}}>{fmtClock(s.start)} → {s.end?fmtClock(s.end):<span style={{color:"#69ff47",animation:"pulse 2s infinite"}}>NOW</span>}</div><div style={{fontSize:10,color:"#8ab8c8",marginTop:2}}>{fmtTime(dur)}</div></div><div style={{width:9,height:9,borderRadius:"50%",background:s.end?"#3a5a6a":"#69ff47",boxShadow:s.end?"none":"0 0 8px #69ff47",animation:s.end?"none":"pulse 1.5s infinite"}}/></div>;})}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {[{label:"NUMBER OF DAYS WORN",val:wearSessions.length,color:"#00e5ff",unit:""},{label:"DAILY GOAL",val:`${WEAR_GOAL_HOURS}h`,color:"#b388ff",unit:"target"},{label:"DAYS WEARING",val:wearDays,color:"#69ff47",unit:"days"},{label:"WEAR STREAK",val:"—",color:"#ffb300",unit:"coming soon"}].map(s=><div key={s.label} style={{...card,textAlign:"center"}}><div style={{fontSize:8,color:"#5ab8cc",letterSpacing:1,marginBottom:6}}>{s.label}</div><div style={{fontFamily:"'Orbitron',monospace",fontSize:24,fontWeight:900,color:s.color,lineHeight:1}}>{s.val}</div><div style={{fontSize:10,color:"#8ab8c8",marginTop:3}}>{s.unit}</div></div>)}
+      </div>
+    </>}
+
+    {/* JOURNEY */}
+    {tab==="journey"&&<>
+      <div style={{...card}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div><div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:"#00e5ff",letterSpacing:2}}>YOUR JOURNEY</div><div style={{fontSize:10,color:"#8ab8c8",marginTop:2}}>56 days for sperm improvement</div></div>
+          <div style={{textAlign:"right"}}><div style={{fontFamily:"'Orbitron',monospace",fontSize:32,fontWeight:900,color:"#00e5ff",lineHeight:1}}>{wearDays}</div><div style={{fontSize:9,color:"#8ab8c8"}}>DAYS</div></div>
+        </div>
+        <div style={{marginBottom:10,padding:"8px 12px",background:"#050d14",borderRadius:8,border:"1px solid #0d3050"}}>
+          <div style={{fontSize:9,color:"#8ab8c8",marginBottom:6}}>PREVIEW — drag to simulate days</div>
+          <input type="range" min="0" max="56" value={wearDays} onChange={e=>setWearDays(Number(e.target.value))}/>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#3a6a8a",marginTop:2}}><span>Day 0</span><span>Day 56</span></div>
+        </div>
+        <div style={{height:10,background:"#0d2035",borderRadius:5,overflow:"hidden",marginBottom:4}}>
+          <div style={{height:"100%",width:`${(wearDays/56)*100}%`,background:"linear-gradient(90deg,#004d5a,#00e5ff)",borderRadius:5,transition:"width 0.5s",boxShadow:"0 0 12px #00e5ff44"}}/>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#8ab8c8"}}><span>START</span><span style={{color:"#00e5ff"}}>{Math.round((wearDays/56)*100)}%</span><span>56 DAYS</span></div>
+      </div>
+      {SPERM_STAGES.map((stage,idx)=>{
+        const isStemCell=idx===0;
+        const prog=isStemCell?1:wearDays<stage.days[0]?0:wearDays>stage.days[1]?1:(wearDays-stage.days[0])/Math.max(1,stage.days[1]-stage.days[0]);
+        const isActive=!isStemCell&&wearDays>=stage.days[0]&&wearDays<=stage.days[1];
+        const isDone=isStemCell||wearDays>stage.days[1];
+        const isPending=!isStemCell&&wearDays<stage.days[0];
+        const q=isPending?0:isActive?prog:1;
+        const heatAffected=idx>=1;
+        const CellComponent=CELL_COMPONENTS[idx];
+        const rgb=stage.color==="#00e5ff"?"0,229,255":stage.color==="#b388ff"?"179,136,255":stage.color==="#69ff47"?"105,255,71":stage.color==="#ffb300"?"255,179,0":"255,109,0";
+        return <div key={stage.id} style={{background:`linear-gradient(135deg,${isActive?`rgba(${rgb},0.06)`:isDone?"rgba(0,200,83,0.04)":"#0a1929"},#061422)`,border:`1px solid ${isActive?stage.color+"44":isDone?"#00c85322":"#0d3050"}`,borderRadius:12,padding:"14px",marginBottom:10,boxShadow:isActive?`0 0 20px ${stage.color}11`:"none"}}>
+          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{opacity:isPending?0.2:1,transition:"opacity 0.5s",filter:isActive?`drop-shadow(0 0 10px ${stage.color})`:"none",flexShrink:0}}><CellComponent q={q}/></div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:4}}>
+                <div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:isPending?"#1a3a5a":isActive?stage.color:isDone?"#5ab07a":"#4a6a5a",letterSpacing:0.5}}>{stage.name}</div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {isActive&&<div style={{fontSize:8,background:`${stage.color}22`,color:stage.color,padding:"3px 10px",borderRadius:10,border:`1px solid ${stage.color}44`,animation:"pulse 2s infinite"}}>ACTIVE</div>}
+                  {isDone&&!isStemCell&&<div style={{fontSize:9,color:"#00c853"}}>✓</div>}
+                  {isStemCell&&<div style={{fontSize:8,color:"#8ab8c8",padding:"3px 8px",background:"#0d2035",borderRadius:10}}>BASELINE</div>}
+                  {heatAffected&&<div style={{fontSize:8,color:"#ff9060",padding:"3px 8px",background:"rgba(255,109,0,0.08)",borderRadius:10,border:"1px solid #ff6d0022"}}>🌡 HEAT SENSITIVE</div>}
+                </div>
+              </div>
+              <div style={{fontSize:9,color:"#7ecfdf",marginTop:2,marginBottom:6}}>{stage.daysLabel}</div>
+              <div style={{fontSize:10,color:isPending?"#1a3a5a":"#8ab8c8",lineHeight:1.6}}>{stage.desc}</div>
+            </div>
+          </div>
+          {isStemCell?<div style={{marginTop:10,height:6,background:"#0d2035",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:"100%",background:"linear-gradient(90deg,#00a040,#00c853)",borderRadius:3}}/></div>
+          :<><div style={{marginTop:10,height:6,background:"#0d2035",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${(isDone?1:isActive?prog:0)*100}%`,background:isDone?"linear-gradient(90deg,#00a040,#00c853)":`linear-gradient(90deg,${stage.color}88,${stage.color})`,borderRadius:3,transition:"width 0.5s",boxShadow:isActive?`0 0 8px ${stage.color}66`:"none"}}/></div>
+          {isActive&&<div style={{fontSize:9,color:stage.color,marginTop:4,textAlign:"right"}}>{Math.round(prog*100)}% through this stage</div>}</>}
+        </div>;
+      })}
+    </>}
+
+    {/* OVERRIDE */}
+    {tab==="override"&&<>
+      {overrideActive&&<div style={{background:"linear-gradient(135deg,rgba(255,179,0,0.15),rgba(255,100,0,0.1))",border:"1px solid #ffb30066",borderRadius:12,padding:"12px 16px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:10,height:10,borderRadius:"50%",background:"#ffb300",boxShadow:"0 0 10px #ffb300",animation:"pulse 1s infinite"}}/>
+        <div><div style={{fontFamily:"'Orbitron',monospace",fontSize:11,color:"#ffb300",letterSpacing:2}}>OVERRIDE ACTIVE — {overrideSpeed}%</div>{overrideTimer!==null&&<div style={{fontSize:10,color:"#c09030",marginTop:2}}>Ends in {Math.floor(overrideTimer/60)}:{String(overrideTimer%60).padStart(2,"0")}</div>}</div>
+        <button onClick={()=>setOverrideActive(false)} style={{marginLeft:"auto",background:"rgba(255,23,68,0.15)",border:"1px solid #ff1744",color:"#ff1744",padding:"5px 12px",fontFamily:"'Orbitron',monospace",fontSize:9,cursor:"pointer",borderRadius:8}}>CANCEL</button>
+      </div>}
+
+      <div style={{...card}}>
+        <div style={{fontSize:10,color:"#5ab8cc",letterSpacing:3,marginBottom:16,fontFamily:"'Orbitron',monospace"}}>SET FAN SPEED</div>
+        <div style={{textAlign:"center",marginBottom:16}}>
+          <div style={{fontFamily:"'Orbitron',monospace",fontSize:52,fontWeight:900,color:fanColor(overrideSpeed),textShadow:`0 0 30px ${fanColor(overrideSpeed)}66`,lineHeight:1}}>{overrideSpeed}<span style={{fontSize:20,color:"#8ab8c8"}}>%</span></div>
+          <div style={{fontSize:10,color:"#8ab8c8",marginTop:4}}>{overrideSpeed<=25?"WHISPER QUIET":overrideSpeed<=50?"LOW":overrideSpeed<=75?"MEDIUM":"HIGH"}</div>
+        </div>
+        <input type="range" min="10" max="100" step="5" value={overrideSpeed} onChange={e=>setOverrideSpeed(Number(e.target.value))} style={{width:"100%"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#5a8a9a",marginTop:4}}><span>10%</span><span>50%</span><span>100%</span></div>
+        <div style={{display:"flex",justifyContent:"space-around",marginTop:20}}>
+          <FanSpinner speed={overrideSpeed} color={fanColor(overrideSpeed)} label="LEFT FAN"/>
+          <FanSpinner speed={overrideSpeed} color={fanColor(overrideSpeed)} label="RIGHT FAN"/>
+        </div>
+      </div>
+
+      <div style={{...card}}>
+        <div style={{fontSize:10,color:"#5ab8cc",letterSpacing:3,marginBottom:12,fontFamily:"'Orbitron',monospace"}}>RUN FOR (OPTIONAL)</div>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+          <input type="range" min="5" max="120" step="5" value={overrideDuration} onChange={e=>setOverrideDuration(Number(e.target.value))} style={{flex:1}}/>
+          <div style={{fontFamily:"'Orbitron',monospace",fontSize:18,color:"#00e5ff",minWidth:60,textAlign:"right"}}>{overrideDuration}<span style={{fontSize:10,color:"#8ab8c8"}}>m</span></div>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#5a8a9a"}}><span>5 min</span><span>120 min</span></div>
+        {overrideActive&&overrideTimer!==null&&<div style={{marginTop:12}}>
+          <div style={{height:6,background:"#0d2035",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${(overrideTimer/(overrideDuration*60))*100}%`,background:"linear-gradient(90deg,#ffb30066,#ffb300)",borderRadius:3,transition:"width 1s linear"}}/></div>
+          <div style={{fontSize:10,color:"#c09030",marginTop:4,textAlign:"center"}}>{Math.floor(overrideTimer/60)}:{String(overrideTimer%60).padStart(2,"0")} remaining</div>
+        </div>}
+      </div>
+
+      <div style={{...card,border:`1px solid ${overrideIgnoreSensors?"#ff174444":"#0d3050"}`,cursor:"pointer"}} onClick={()=>setOverrideIgnoreSensors(v=>!v)}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><div style={{fontSize:12,color:overrideIgnoreSensors?"#ff6060":"#8ab8c8",fontFamily:"'Orbitron',monospace",letterSpacing:1}}>IGNORE TEMPERATURE SENSORS</div><div style={{fontSize:10,color:"#5a8a9a",marginTop:3}}>Fan runs at set speed regardless of temperature</div></div>
+          <div style={{width:46,height:26,borderRadius:13,background:overrideIgnoreSensors?"#ff1744":"#1a3a5a",position:"relative",transition:"background 0.3s",flexShrink:0}}><div style={{position:"absolute",top:3,left:overrideIgnoreSensors?23:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.25s"}}/></div>
+        </div>
+        {overrideIgnoreSensors&&<div style={{marginTop:8,padding:"6px 10px",background:"rgba(255,23,68,0.08)",borderRadius:6,border:"1px solid #ff174422"}}><span style={{fontSize:10,color:"#ff8080"}}>⚠ Temperature monitoring paused — fans will not auto-adjust</span></div>}
+      </div>
+
+      <button onClick={()=>setOverrideActive(v=>!v)} style={{width:"100%",background:overrideActive?"linear-gradient(135deg,#3d0014,#1a000a)":"linear-gradient(135deg,#0d3d00,#061a00)",border:`1px solid ${overrideActive?"#ff1744":"#69ff47"}`,color:overrideActive?"#ff1744":"#69ff47",padding:"16px",fontFamily:"'Orbitron',monospace",fontSize:13,cursor:"pointer",borderRadius:12,letterSpacing:3,fontWeight:900,boxShadow:overrideActive?"0 0 20px #ff174422":"0 0 20px #69ff4722",transition:"all 0.3s"}}>
+        {overrideActive?"⏹ STOP OVERRIDE":"▶ START OVERRIDE"}
+      </button>
+      <div style={{fontSize:10,color:"#5a8a9a",textAlign:"center",marginTop:8}}>{overrideActive?"Fans are running at your set speed":"Tap to take manual control of fan speed"}</div>
+    </>}
+
+    {/* SETTINGS */}
+    {tab==="settings"&&<>
+      <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3,marginBottom:10}}>FAN RESTRICTIONS</div>
+      <Toggle checked={restrict50} onChange={setRestrict50} label="PUBLIC MODE" sublabel="Maximum fan speed 50%" accent="#69ff47"/>
+      <Toggle checked={meetingMode} onChange={v=>{setMeetingMode(v);if(!v)setMeetingTimer(null);}} label="MEETING MODE" sublabel="Maximum fan speed 25%" accent="#ffb300"/>
+      {meetingMode&&<div style={{background:"linear-gradient(135deg,#1a0d00,#100800)",border:"1px solid #ffb30033",borderRadius:12,padding:"14px",marginBottom:8}}>
+        <div style={{fontSize:10,color:"#ffb300",marginBottom:10}}>⏱ MEETING DURATION</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <input type="number" min="5" max="480" value={meetingDuration} onChange={e=>setMeetingDuration(Number(e.target.value))}/>
+          <span style={{fontSize:10,color:"#8ab8c8"}}>minutes</span>
+          <button onClick={()=>setMeetingTimer(meetingDuration*60)} style={{marginLeft:"auto",background:"linear-gradient(135deg,#3d2a00,#1a1200)",border:"1px solid #ffb300",color:"#ffb300",padding:"7px 16px",fontFamily:"'Share Tech Mono',monospace",fontSize:11,cursor:"pointer",borderRadius:8}}>{meetingTimer>0?"RESET":"START"}</button>
+        </div>
+        {meetingTimer>0&&<><div style={{fontFamily:"'Orbitron',monospace",fontSize:28,color:"#ffb300",textAlign:"center"}}>{Math.floor(meetingTimer/60)}:{String(meetingTimer%60).padStart(2,"0")}</div><div style={{marginTop:8,height:6,background:"#0d2035",borderRadius:3}}><div style={{height:"100%",width:`${(meetingTimer/(meetingDuration*60))*100}%`,background:"linear-gradient(90deg,#ffb30066,#ffb300)",borderRadius:3,transition:"width 1s linear"}}/></div></>}
+      </div>}
+      <div style={{fontSize:9,color:"#5ab8cc",letterSpacing:3,marginTop:16,marginBottom:10}}>DEVICE INFO</div>
+      <div style={{...card}}>
+        {[["DEVICE","CoolBros v1"],["BT STATUS",connected?"CONNECTED":"NOT CONNECTED"],["UUID STATUS","PENDING SETUP"],["DAYS WORN",`${wearDays}`],["TODAY'S WEAR",fmtTime(todaySeconds)]].map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #0d203033"}}>
+            <span style={{fontSize:10,color:"#8ab8c8"}}>{k}</span>
+            <span style={{fontSize:10,color:k==="BT STATUS"?(connected?"#69ff47":"#546e7a"):k==="UUID STATUS"?"#ffb300":"#fff"}}>{v}</span>
+          </div>
+        ))}
+      </div>
+      <button onClick={()=>{setWearDays(0);setTodaySeconds(0);setWearSessions([]);setHeatEvents([]);setTempHistory([31.2,31.1,31.3]);setFanSpeed(25);setOverrideActive(false);}} style={{width:"100%",background:"linear-gradient(135deg,#1a0007,#0d0004)",border:"1px solid #ff174433",color:"#ff1744",padding:"12px",fontFamily:"'Share Tech Mono',monospace",fontSize:10,cursor:"pointer",borderRadius:12,letterSpacing:2}}>⚠ RESET ALL DATA</button>
+      <div style={{marginTop:12,fontSize:9,color:"#3a6a8a",textAlign:"center"}}>COOLBROS v0.5 · SIMULATED · BT UUID PENDING</div>
+    </>}
+
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
